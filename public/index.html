@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lilac CRM</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23a78bfa'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>L</text></svg>" />
+</head>
+<body>
+  <!-- Auth screen (login / register) -->
+  <div id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="brand">
+        <span class="brand-mark">L</span>
+        <h1>Lilac CRM</h1>
+      </div>
+      <p class="auth-subtitle" id="auth-subtitle">Sign in to manage your clients, issues and meetings</p>
+      <form id="auth-form">
+        <div class="field hidden" id="auth-name-field">
+          <label for="auth-name">Full name</label>
+          <input type="text" id="auth-name" autocomplete="name" placeholder="Jane Doe" />
+        </div>
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" autocomplete="email" required placeholder="you@company.com" />
+        </div>
+        <div class="field">
+          <label for="auth-password">Password</label>
+          <input type="password" id="auth-password" autocomplete="current-password" required minlength="6" placeholder="••••••••" />
+        </div>
+        <p class="form-error hidden" id="auth-error"></p>
+        <button type="submit" class="btn btn-primary btn-block" id="auth-submit">Sign in</button>
+      </form>
+      <p class="auth-switch">
+        <span id="auth-switch-text">New here?</span>
+        <a href="#" id="auth-switch-link">Create an account</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">L</span>
+        <span class="brand-name">Lilac CRM</span>
+      </div>
+      <nav class="nav">
+        <a href="#/clients" data-nav="clients" class="nav-link">
+          <span class="nav-icon">🏢</span> Clients
+        </a>
+        <a href="#/issues" data-nav="issues" class="nav-link">
+          <span class="nav-icon">🎯</span> Issues
+        </a>
+        <a href="#/meetings" data-nav="meetings" class="nav-link">
+          <span class="nav-icon">📅</span> Meetings
+        </a>
+        <a href="#/profile" data-nav="profile" class="nav-link">
+          <span class="nav-icon">👤</span> User profile
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebar-user"></div>
+        <button class="btn btn-ghost btn-small" id="logout-btn">Sign out</button>
+      </div>
+    </aside>
+    <main class="content" id="content"></main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 id="modal-title"></h2>
+        <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -14,6 +14,8 @@
   };
 
   let currentUser = null;
+  let appConfig = null; // { meetScriptUrl } — where the OpenVidu Meet webcomponent lives
+  let meetScriptPromise = null;
   let issueFilter = 'all';
   let meetingView = 'calendar'; // 'calendar' | 'list'
   let calendarCursor = startOfMonth(new Date());
@@ -188,8 +190,33 @@
     $('#auth-screen').classList.add('hidden');
     $('#app').classList.remove('hidden');
     $('#sidebar-user').innerHTML = `<strong>${esc(currentUser.name)}</strong>${esc(currentUser.email)}`;
+    if (!appConfig) {
+      api('GET', '/api/config')
+        .then((cfg) => { appConfig = cfg; })
+        .catch(() => { /* video features stay disabled */ });
+    }
     if (!location.hash || location.hash === '#') location.hash = '#/clients';
     route();
+  }
+
+  // Load the OpenVidu Meet webcomponent bundle from the deployment (once).
+  function loadMeetScript() {
+    if (!appConfig || !appConfig.meetScriptUrl) {
+      return Promise.reject(new Error('OpenVidu Meet is not configured'));
+    }
+    if (!meetScriptPromise) {
+      meetScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = appConfig.meetScriptUrl;
+        script.onload = resolve;
+        script.onerror = () => {
+          meetScriptPromise = null;
+          reject(new Error('Could not load OpenVidu Meet — is the deployment running?'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+    return meetScriptPromise;
   }
 
   function route() {
@@ -338,6 +365,7 @@
             <li><span class="dt">Email</span><span class="dd">${esc(client.contactEmail) || '—'}</span></li>
             <li><span class="dt">Phone</span><span class="dd">${esc(client.contactPhone) || '—'}</span></li>
             <li><span class="dt">Address</span><span class="dd">${esc(client.address) || '—'}</span></li>
+            ${client.meetRoom ? `<li><span class="dt">Meeting room</span><span class="dd">🎥 ${esc(client.meetRoom.roomName)}</span></li>` : ''}
           </ul>
         </div>
         <div class="detail-panel">
@@ -556,20 +584,29 @@
       }
     });
     $('#add-meeting').addEventListener('click', () => meetingFormModal(null, issue.id));
-    bindMeetingRowActions(issue);
+    bindMeetingActions(issue.meetings, { title: `${issue.clientName} — ${issue.title}` });
   }
 
   // --------------------------------------------------------------- meetings ---
 
+  function meetingParticipant(m, kind) {
+    return (m.participants || []).find((p) => p.kind === kind);
+  }
+
   function meetingRow(m, isPast) {
+    const canJoin = Boolean(meetingParticipant(m, 'user'));
+    const clientLink = meetingParticipant(m, 'client');
     return `
       <div class="meeting-row" data-meeting="${esc(m.id)}">
         <div class="meeting-date">${fmtDateTime(m.date)}</div>
         <div class="meeting-info">
           ${m.issueTitle ? `<div class="meeting-context">${esc(m.clientName)} · ${esc(m.issueTitle)}</div>` : ''}
-          <div class="meeting-resume">${esc(m.resume) || (isPast ? '<em>No summary registered yet</em>' : 'Online meeting — managed outside the app')}</div>
+          <div class="meeting-resume">${esc(m.resume) || (isPast ? '<em>No summary registered yet</em>' : 'Online meeting — join from here when it starts')}</div>
+          ${m.meetError ? `<div class="meeting-context" style="color:var(--red);">⚠ No video room: ${esc(m.meetError)}</div>` : ''}
         </div>
         <div class="meeting-actions">
+          ${canJoin && !isPast ? `<button class="btn btn-primary btn-small" data-join-meeting="${esc(m.id)}">▶ Join</button>` : ''}
+          ${clientLink && !isPast ? `<button class="btn btn-secondary btn-small" title="Copy the client's personal meeting link" data-copy-client-link="${esc(m.id)}">🔗 Client link</button>` : ''}
           <button class="btn btn-secondary btn-small" data-edit-meeting="${esc(m.id)}">${isPast && !m.resume ? 'Add summary' : 'Edit'}</button>
           <button class="btn btn-danger btn-small" data-delete-meeting="${esc(m.id)}">Delete</button>
         </div>
@@ -577,12 +614,34 @@
     `;
   }
 
-  function bindMeetingRowActions(issue) {
+  // Wire join/copy/edit/delete buttons for the meeting rows currently in the
+  // DOM. `meetings` is the list to resolve ids against; `context` provides
+  // client/issue names when the meetings themselves aren't decorated.
+  function bindMeetingActions(meetings, context) {
+    for (const btn of content.querySelectorAll('[data-join-meeting]')) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        joinMeeting(meetings.find((m) => m.id === btn.dataset.joinMeeting), context);
+      });
+    }
+    for (const btn of content.querySelectorAll('[data-copy-client-link]')) {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const meeting = meetings.find((m) => m.id === btn.dataset.copyClientLink);
+        const participant = meetingParticipant(meeting, 'client');
+        try {
+          await navigator.clipboard.writeText(participant.accessUrl);
+          toast(`Copied ${participant.name}'s personal meeting link`);
+        } catch {
+          prompt('Copy the client meeting link:', participant.accessUrl);
+        }
+      });
+    }
     for (const btn of content.querySelectorAll('[data-edit-meeting]')) {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const meeting = issue.meetings.find((m) => m.id === btn.dataset.editMeeting);
-        meetingFormModal(meeting, issue.id);
+        const meeting = meetings.find((m) => m.id === btn.dataset.editMeeting);
+        meetingFormModal(meeting, meeting.issueId);
       });
     }
     for (const btn of content.querySelectorAll('[data-delete-meeting]')) {
@@ -595,6 +654,44 @@
         }
       });
     }
+  }
+
+  // Embed the OpenVidu Meet webcomponent so the meeting happens inside the app.
+  async function joinMeeting(meeting, context = {}) {
+    const participant = meetingParticipant(meeting, 'user');
+    if (!participant) {
+      toast('This meeting has no video room', true);
+      return;
+    }
+    try {
+      await loadMeetScript();
+    } catch (err) {
+      toast(err.message, true);
+      return;
+    }
+
+    const title = context.title || [meeting.clientName, meeting.issueTitle].filter(Boolean).join(' — ');
+    content.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1>${esc(title) || 'Online meeting'}</h1>
+          <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(participant.name)} (${esc(participant.role)})</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" id="leave-meeting">Leave meeting</button>
+        </div>
+      </div>
+      <div class="meet-container" id="meet-container"></div>
+    `;
+
+    const container = $('#meet-container');
+    container.innerHTML = `<openvidu-meet room-url="${esc(participant.accessUrl)}"></openvidu-meet>`;
+    const meetEl = $('openvidu-meet', container);
+    meetEl.once('closed', () => route());
+    $('#leave-meeting').addEventListener('click', () => {
+      meetEl.leaveRoom();
+      route();
+    });
   }
 
   async function meetingFormModal(meeting, presetIssueId) {
@@ -689,25 +786,7 @@
       <div class="section-header"><h2>Past (${past.length})</h2></div>
       <div class="detail-panel full">${rows(past, true)}</div>
     `;
-    bindGlobalMeetingActions(meetings);
-  }
-
-  function bindGlobalMeetingActions(meetings) {
-    for (const btn of content.querySelectorAll('[data-edit-meeting]')) {
-      btn.addEventListener('click', () => {
-        const meeting = meetings.find((m) => m.id === btn.dataset.editMeeting);
-        meetingFormModal(meeting, meeting.issueId);
-      });
-    }
-    for (const btn of content.querySelectorAll('[data-delete-meeting]')) {
-      btn.addEventListener('click', () => {
-        if (confirm('Delete this meeting?')) {
-          api('DELETE', `/api/meetings/${btn.dataset.deleteMeeting}`)
-            .then(() => { toast('Meeting deleted'); renderMeetings(); })
-            .catch((err) => toast(err.message, true));
-        }
-      });
-    }
+    bindMeetingActions(meetings);
   }
 
   function renderCalendar(meetings) {
@@ -784,9 +863,45 @@
     for (const btn of content.querySelectorAll('[data-event]')) {
       btn.addEventListener('click', () => {
         const meeting = meetings.find((m) => m.id === btn.dataset.event);
-        meetingFormModal(meeting, meeting.issueId);
+        meetingDetailsModal(meeting);
       });
     }
+  }
+
+  function meetingDetailsModal(meeting) {
+    const userPart = meetingParticipant(meeting, 'user');
+    const clientPart = meetingParticipant(meeting, 'client');
+    openModal(`${meeting.clientName} — ${meeting.issueTitle}`, `
+      <ul class="detail-list">
+        <li><span class="dt">When</span><span class="dd">${fmtDateTime(meeting.date)} ${meeting.past ? '<span class="badge badge-past">Past</span>' : '<span class="badge badge-planned">Planned</span>'}</span></li>
+        <li><span class="dt">Participants</span><span class="dd">${(meeting.participants || []).map((p) => `${esc(p.name)} (${esc(p.role)})`).join(', ') || '—'}</span></li>
+        <li><span class="dt">Summary</span><span class="dd">${esc(meeting.resume) || '—'}</span></li>
+      </ul>
+      <div class="form-actions">
+        <button class="btn btn-ghost" data-md-edit>Edit</button>
+        ${clientPart ? '<button class="btn btn-secondary" data-md-copy>🔗 Client link</button>' : ''}
+        ${userPart ? '<button class="btn btn-primary" data-md-join>▶ Join</button>' : ''}
+      </div>
+    `, (body) => {
+      $('[data-md-edit]', body).addEventListener('click', () => {
+        closeModal();
+        meetingFormModal(meeting, meeting.issueId);
+      });
+      const copyBtn = $('[data-md-copy]', body);
+      if (copyBtn) copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(clientPart.accessUrl);
+          toast(`Copied ${clientPart.name}'s personal meeting link`);
+        } catch {
+          prompt('Copy the client meeting link:', clientPart.accessUrl);
+        }
+      });
+      const joinBtn = $('[data-md-join]', body);
+      if (joinBtn) joinBtn.addEventListener('click', () => {
+        closeModal();
+        joinMeeting(meeting);
+      });
+    });
   }
 
   // ---------------------------------------------------------------- profile ---

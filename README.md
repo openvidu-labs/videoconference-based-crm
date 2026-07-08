@@ -4,6 +4,10 @@ A small CRM to manage **clients**, **issues** and **meetings**, with login and
 self-service user registration. All data lives in an **in-memory database**, so
 it runs with a single command and resets on restart.
 
+Online meetings happen **inside the app**, powered by
+[OpenVidu Meet](https://openvidu.io) and its embedded webcomponent — see
+[OpenVidu integration](#openvidu-meet-integration) and [`deploy/`](deploy/README.md).
+
 ## Run
 
 ```bash
@@ -30,9 +34,37 @@ and the SPA entry point.
   present and past issues.
 - **Issues** — problems a client is facing; each has an assigned user, a status
   (`open`, `in-progress`, `resolved`, `closed`), and its meetings.
-- **Meetings** — online meetings managed outside the app; the app registers the
-  date and a brief resume. Shown as a monthly calendar or a planned/past list.
+- **Meetings** — online meetings held inside the app via OpenVidu Meet; the app
+  registers the date and a brief resume. Shown as a monthly calendar or a
+  planned/past list.
 - **User profile** — update name, email and password.
+
+## OpenVidu Meet integration
+
+When a meeting is scheduled for an issue, the CRM:
+
+1. Creates an OpenVidu Meet **room for the issue's client** (once per client,
+   reused for later meetings, recreated if it disappears from Meet).
+2. Registers the assigned user (**moderator**) and the client contact
+   (**speaker**) as the meeting's **participants**, each with the matching
+   role access URL of the room.
+
+From the UI you can then **join the meeting embedded in the app** (the
+`<openvidu-meet>` webcomponent) and **copy the client's personal link** to send
+them. If OpenVidu is not running, meetings are still registered — just without
+a video room.
+
+Configuration (defaults match the
+[local OpenVidu deployment](https://openvidu.io/latest/meet/deployment/local/)):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `OV_MEET_SERVER_URL` | `http://localhost:9080/meet` | Meet REST API base as reached by this server |
+| `OV_MEET_PUBLIC_URL` | same as server URL | Meet base as reached by browsers (links are rewritten to it) |
+| `OV_MEET_API_KEY` | `meet-api-key` | Meet REST API key |
+
+To run everything (OpenVidu 3.7.0 + the CRM) with Docker, see
+[`deploy/README.md`](deploy/README.md) — TL;DR: `cd deploy && ./up.sh`.
 
 ## Layout & stack
 

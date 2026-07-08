@@ -280,6 +280,15 @@ a { color: var(--purple-600); }
 .meeting-info .meeting-context { font-size: 13px; color: var(--ink-400); margin-top: 2px; }
 .meeting-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ----------------------------------------------------- embedded meeting --- */
+.meet-container {
+  height: calc(100vh - 150px); min-height: 420px;
+  border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+  background: var(--ink-900);
+}
+.meet-container openvidu-meet { display: block; width: 100%; height: 100%; }
+
 /* ------------------------------------------------------------- calendar --- */
 .view-toggle { display: inline-flex; background: var(--purple-100); border-radius: 10px; padding: 3px; }
 .view-toggle button {

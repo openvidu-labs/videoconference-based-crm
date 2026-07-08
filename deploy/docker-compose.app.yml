@@ -1,0 +1,28 @@
+# Adds the Lilac CRM app to the OpenVidu Meet local deployment
+# (https://openvidu.io/latest/meet/deployment/local/).
+#
+# This file is meant to be merged with the official OpenVidu compose artifact:
+#
+#   docker compose -p openvidu-crm \
+#     -f oci://openvidu/local-meet:3.7.0 \
+#     -f docker-compose.app.yml \
+#     up -d -y openvidu-meet-init crm-app
+#
+# The ./up.sh script does exactly that (and builds the image first).
+services:
+  crm-app:
+    image: lilac-crm:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      # The CRM server reaches the Meet API through the deployment's Caddy
+      # proxy on the shared Docker network...
+      OV_MEET_SERVER_URL: http://caddy-proxy:9080/meet
+      # ...but meeting links handed to browsers must use the host-visible URL.
+      OV_MEET_PUBLIC_URL: ${OV_MEET_PUBLIC_URL:-http://localhost:9080/meet}
+      OV_MEET_API_KEY: ${OV_MEET_API_KEY:-meet-api-key}
+    depends_on:
+      openvidu-meet:
+        condition: service_started

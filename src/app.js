@@ -4,9 +4,11 @@ const express = require('express');
 const session = require('express-session');
 
 const store = require('./store');
+const { createMeetService } = require('./meet');
 
-function createApp() {
+function createApp(config = {}) {
   const app = express();
+  const meet = createMeetService(config.meet);
 
   app.use(express.json());
   app.use(
@@ -82,6 +84,11 @@ function createApp() {
     res.json(store.publicUser(user));
   });
 
+  // Frontend runtime configuration (where to load the Meet webcomponent from).
+  app.get('/api/config', requireAuth, (req, res) => {
+    res.json({ meetScriptUrl: meet.scriptUrl, meetPublicUrl: meet.publicUrl });
+  });
+
   app.get('/api/users', requireAuth, (req, res) => {
     res.json([...store.db.users.values()].map(store.publicUser));
   });
@@ -127,9 +134,11 @@ function createApp() {
   });
 
   app.delete('/api/clients/:id', requireAuth, (req, res) => {
+    const client = store.db.clients.get(req.params.id);
     if (!store.deleteClient(req.params.id)) {
       return res.status(404).json({ error: 'Client not found' });
     }
+    meet.deleteClientRoom(client); // best-effort, does not block the response
     res.status(204).end();
   });
 
@@ -234,7 +243,7 @@ function createApp() {
     res.json(meetings);
   });
 
-  app.post('/api/issues/:id/meetings', requireAuth, (req, res) => {
+  app.post('/api/issues/:id/meetings', requireAuth, async (req, res) => {
     const issue = store.db.issues.get(req.params.id);
     if (!issue) return res.status(404).json({ error: 'Issue not found' });
     const { date, resume } = req.body || {};
@@ -246,6 +255,22 @@ function createApp() {
       date: new Date(date).toISOString(),
       resume,
     });
+
+    // Provision the online meeting in OpenVidu Meet: one room per client, with
+    // the assigned user (or the scheduling user) and the client contact as
+    // members. If Meet is unreachable the CRM meeting is still registered.
+    const client = store.db.clients.get(issue.clientId);
+    const user =
+      (issue.assigneeId && store.db.users.get(issue.assigneeId)) ||
+      store.db.users.get(req.session.userId);
+    try {
+      const { roomId, participants } = await meet.provisionMeeting(client, user);
+      meeting.roomId = roomId;
+      meeting.participants = participants;
+    } catch (error) {
+      console.error(`OpenVidu Meet provisioning failed: ${error.message}`);
+      meeting.meetError = `OpenVidu Meet unavailable: ${error.message}`;
+    }
     res.status(201).json(decorateMeeting(meeting));
   });
 

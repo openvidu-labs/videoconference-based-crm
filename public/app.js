@@ -675,7 +675,7 @@
       <div class="page-header">
         <div>
           <h1>${esc(title) || 'Online meeting'}</h1>
-          <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(participant.name)} (${esc(participant.role)})</p>
+          <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(currentUser.name)} (${esc(participant.role)})</p>
         </div>
         <div class="page-actions">
           <button class="btn btn-secondary" id="leave-meeting">Leave meeting</button>
@@ -685,7 +685,7 @@
     `;
 
     const container = $('#meet-container');
-    container.innerHTML = `<openvidu-meet room-url="${esc(participant.accessUrl)}"></openvidu-meet>`;
+    container.innerHTML = `<openvidu-meet room-url="${esc(participant.accessUrl)}" participant-name="${esc(currentUser.name)}"></openvidu-meet>`;
     const meetEl = $('openvidu-meet', container);
     meetEl.once('closed', () => route());
     $('#leave-meeting').addEventListener('click', () => {

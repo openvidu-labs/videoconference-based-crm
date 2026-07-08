@@ -44,10 +44,10 @@ and the SPA entry point.
 When a meeting is scheduled for an issue, the CRM:
 
 1. Creates an OpenVidu Meet **room for the issue's client** (once per client,
-   reused for later meetings).
-2. Adds the assigned user (moderator) and the client contact (speaker) as
-   **room members** — identified guests with personal access links.
-3. Registers both as the meeting's **participants**.
+   reused for later meetings, recreated if it disappears from Meet).
+2. Registers the assigned user (**moderator**) and the client contact
+   (**speaker**) as the meeting's **participants**, each with the matching
+   role access URL of the room.
 
 From the UI you can then **join the meeting embedded in the app** (the
 `<openvidu-meet>` webcomponent) and **copy the client's personal link** to send

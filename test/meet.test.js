@@ -6,8 +6,9 @@ const express = require('express');
 const { createApp } = require('../src/app');
 const store = require('../src/store');
 
-// Fake OpenVidu Meet server implementing the subset of the REST API the CRM
-// uses: POST /rooms, POST /rooms/:id/members, GET /rooms/:id, DELETE /rooms/:id.
+// Fake OpenVidu Meet 3.7.0 server implementing the subset of the REST API the
+// CRM uses: POST /rooms, GET /rooms/:id, DELETE /rooms/:id. Shapes verified
+// against a real local deployment (rooms carry moderatorUrl/speakerUrl).
 function startFakeMeet() {
   const app = express();
   app.use(express.json());
@@ -32,16 +33,13 @@ function startFakeMeet() {
   app.post('/meet/api/v1/rooms', (req, res) => {
     const { roomName } = req.body;
     if (!roomName) return res.status(400).json({ message: 'roomName is required' });
-    const roomId = `${roomName.replace(/\s+/g, '-')}-${++state.counter}`;
+    const roomId = `${roomName.toLowerCase().replace(/\s+/g, '_')}-${++state.counter}`;
     const room = {
       roomId,
       roomName,
-      access: {
-        anonymous: {
-          moderator: { url: `${state.baseUrl}/room/${roomId}?secret=mod-${state.counter}` },
-          speaker: { url: `${state.baseUrl}/room/${roomId}?secret=spk-${state.counter}` },
-        },
-      },
+      status: 'open',
+      moderatorUrl: `${state.baseUrl}/room/${roomId}?secret=mod-${state.counter}`,
+      speakerUrl: `${state.baseUrl}/room/${roomId}?secret=spk-${state.counter}`,
     };
     state.rooms.set(roomId, room);
     res.status(201).json(room);
@@ -58,20 +56,6 @@ function startFakeMeet() {
       return res.status(404).json({ message: 'Room not found' });
     }
     res.status(200).json({ message: 'deleted' });
-  });
-
-  app.post('/meet/api/v1/rooms/:roomId/members', (req, res) => {
-    const room = state.rooms.get(req.params.roomId);
-    if (!room) return res.status(404).json({ message: 'Room not found' });
-    const { name, baseRole } = req.body;
-    if (!name || !baseRole) return res.status(400).json({ message: 'name and baseRole required' });
-    const memberId = `ext-${++state.counter}`;
-    res.status(201).json({
-      memberId,
-      name,
-      baseRole,
-      accessUrl: `${state.baseUrl}/room/${room.roomId}?secret=${memberId}`,
-    });
   });
 
   return new Promise((resolve) => {
@@ -119,7 +103,7 @@ describe('OpenVidu Meet integration', () => {
     });
   }
 
-  test('scheduling a meeting creates a Meet room for the client and adds user and client as members', async () => {
+  test('scheduling a meeting creates a Meet room for the client with user and client as participants', async () => {
     const app = makeApp();
     const { agent, user, issue } = await seed(app);
 
@@ -138,27 +122,21 @@ describe('OpenVidu Meet integration', () => {
     assert.strictEqual(roomCalls[0].body.roomName, 'Acme Corp');
     assert.strictEqual(roomCalls[0].apiKey, 'meet-api-key');
 
-    // Both the assigned user (moderator) and the client contact (speaker) are room members.
-    const memberCalls = fake.state.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/members'));
-    assert.strictEqual(memberCalls.length, 2);
-    const roles = Object.fromEntries(memberCalls.map((c) => [c.body.baseRole, c.body.name]));
-    assert.strictEqual(roles.moderator, user.name);
-    assert.strictEqual(roles.speaker, 'John Acme');
-
-    // Both participants are registered on the meeting with personal access URLs.
+    // The assigned user (moderator) and the client contact (speaker) are the
+    // meeting's participants, each with a role-specific access URL.
     assert.strictEqual(meeting.participants.length, 2);
     const userPart = meeting.participants.find((p) => p.kind === 'user');
     const clientPart = meeting.participants.find((p) => p.kind === 'client');
     assert.strictEqual(userPart.name, user.name);
     assert.strictEqual(userPart.role, 'moderator');
-    assert.match(userPart.accessUrl, /\/room\/.*secret=ext-/);
+    assert.match(userPart.accessUrl, /\/room\/.*secret=mod-/);
     assert.strictEqual(clientPart.name, 'John Acme');
     assert.strictEqual(clientPart.role, 'speaker');
-    assert.match(clientPart.accessUrl, /\/room\/.*secret=ext-/);
+    assert.match(clientPart.accessUrl, /\/room\/.*secret=spk-/);
     assert.notStrictEqual(userPart.accessUrl, clientPart.accessUrl);
   });
 
-  test('a second meeting for the same client reuses the room and its members', async () => {
+  test('a second meeting for the same client reuses the room', async () => {
     const app = makeApp();
     const { agent, issue } = await seed(app);
 
@@ -174,8 +152,6 @@ describe('OpenVidu Meet integration', () => {
 
     const roomCalls = fake.state.calls.filter((c) => c.method === 'POST' && c.path === '/meet/api/v1/rooms');
     assert.strictEqual(roomCalls.length, 1, 'room must be created only once per client');
-    const memberCalls = fake.state.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/members'));
-    assert.strictEqual(memberCalls.length, 2, 'members must not be re-added for the same room');
 
     // Same participants (same access URLs) on both meetings.
     assert.deepStrictEqual(

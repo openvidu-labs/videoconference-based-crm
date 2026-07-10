@@ -280,6 +280,23 @@ a { color: var(--purple-600); }
 .meeting-info .meeting-context { font-size: 13px; color: var(--ink-400); margin-top: 2px; }
 .meeting-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* ---------------------------------------------------- guest permissions --- */
+.meet-access-row {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 14px;
+  flex-wrap: wrap;
+}
+.perm-group { margin-bottom: 12px; }
+.perm-group h4 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--ink-400); margin-bottom: 6px; font-weight: 650;
+}
+.perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px; }
+.perm-item {
+  display: flex; align-items: center; gap: 8px; font-size: 14px;
+  color: var(--ink-900); cursor: pointer;
+}
+.perm-item input { accent-color: var(--purple-500); width: 15px; height: 15px; }
+
 /* ----------------------------------------------------- embedded meeting --- */
 .meet-container {
   height: calc(100vh - 150px); min-height: 420px;

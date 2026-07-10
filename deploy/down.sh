@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-OPENVIDU_VERSION="${OPENVIDU_VERSION:-3.7.0}"
+OPENVIDU_VERSION="${OPENVIDU_VERSION:-3.8.0}"
 PROJECT_NAME="${PROJECT_NAME:-openvidu-crm}"
 
 docker compose -p "$PROJECT_NAME" \

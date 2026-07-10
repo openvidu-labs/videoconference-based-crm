@@ -4,7 +4,7 @@
 # This file is meant to be merged with the official OpenVidu compose artifact:
 #
 #   docker compose -p openvidu-crm \
-#     -f oci://openvidu/local-meet:3.7.0 \
+#     -f oci://openvidu/local-meet:3.8.0 \
 #     -f docker-compose.app.yml \
 #     up -d -y openvidu-meet-init crm-app
 #

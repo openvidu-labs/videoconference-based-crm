@@ -1,7 +1,7 @@
 # Deploying Lilac CRM with OpenVidu Meet
 
 This folder deploys the CRM together with a local
-[OpenVidu Meet 3.7.0 deployment](https://openvidu.io/latest/meet/deployment/local/),
+[OpenVidu Meet 3.8.0 deployment](https://openvidu.io/latest/meet/deployment/local/),
 so that meetings scheduled in the CRM happen inside the app through the
 [OpenVidu Meet webcomponent](https://openvidu.io/latest/meet/embedded/reference/webcomponent/).
 
@@ -20,7 +20,7 @@ This will:
 
 1. Build the CRM image (`lilac-crm:latest`) from `Dockerfile`.
 2. Pull the official OpenVidu local deployment compose artifact
-   (`oci://openvidu/local-meet:3.7.0`) and merge `docker-compose.app.yml` into
+   (`oci://openvidu/local-meet:3.8.0`) and merge `docker-compose.app.yml` into
    the same Compose project, so the CRM container shares the OpenVidu network.
 3. Start everything detached.
 
@@ -64,6 +64,6 @@ already match the local OpenVidu deployment, so you can also run OpenVidu with
 the official command and the CRM with plain Node:
 
 ```bash
-docker compose -p openvidu-meet -f oci://openvidu/local-meet:3.7.0 up -y openvidu-meet-init
+docker compose -p openvidu-meet -f oci://openvidu/local-meet:3.8.0 up -y openvidu-meet-init
 npm start
 ```

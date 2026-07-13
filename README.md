@@ -41,15 +41,24 @@ and the SPA entry point.
 
 ## OpenVidu Meet integration
 
-When a meeting is scheduled for an issue, the CRM:
+The CRM uses the OpenVidu Meet 3.8.0 **room members API** (invited guests with
+fine-grained permissions). When a meeting is scheduled for an issue, the CRM:
 
 1. Creates an OpenVidu Meet **room for the issue's client** (once per client,
    reused for later meetings, recreated if it disappears from Meet).
-2. Registers the assigned user (**moderator**) and the client contact
-   (**speaker**) as the meeting's **participants**, each with the matching
-   role access URL of the room.
+2. Adds the user as an **invited guest with moderator role** — created under
+   the hood; every CRM user who joins a meeting gets their own guest
+   membership.
+3. Adds the client contact as an **invited guest with speaker permissions**,
+   with a personal access link.
 
-From the UI you can then **join the meeting embedded in the app** (the
+From the client's page you can also invite the client without scheduling a
+meeting, and **tune their access with fine-grained permissions** (base role
+plus the 14 OpenVidu Meet member permissions: camera, microphone, screen
+share, chat, recording, kick/end-meeting rights, …) — changes are pushed to
+the room members API.
+
+From the UI you can **join the meeting embedded in the app** (the
 `<openvidu-meet>` webcomponent) and **copy the client's personal link** to send
 them. If OpenVidu is not running, meetings are still registered — just without
 a video room.
@@ -63,7 +72,7 @@ Configuration (defaults match the
 | `OV_MEET_PUBLIC_URL` | same as server URL | Meet base as reached by browsers (links are rewritten to it) |
 | `OV_MEET_API_KEY` | `meet-api-key` | Meet REST API key |
 
-To run everything (OpenVidu 3.7.0 + the CRM) with Docker, see
+To run everything (OpenVidu 3.8.0 + the CRM) with Docker, see
 [`deploy/README.md`](deploy/README.md) — TL;DR: `cd deploy && ./up.sh`.
 
 ## Layout & stack

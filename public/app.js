@@ -372,6 +372,10 @@
           <h3>Notes</h3>
           <p style="font-size:14px; color:var(--ink-600); white-space:pre-wrap;">${esc(client.notes) || 'No notes yet.'}</p>
         </div>
+        <div class="detail-panel full">
+          <h3>Meeting room access</h3>
+          ${meetAccessPanel(client)}
+        </div>
       </div>
       <div class="section-header">
         <h2>Present issues (${present.length})</h2>
@@ -386,6 +390,29 @@
         : `<div class="card-grid">${past.map(issueCard).join('')}</div>`}
     `;
 
+    const inviteBtn = $('#invite-client-guest');
+    if (inviteBtn) inviteBtn.addEventListener('click', async () => {
+      try {
+        await api('POST', `/api/clients/${client.id}/meet-access`, {});
+        toast(`${client.contactName || client.companyName} invited as speaker`);
+        route();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+    const permsBtn = $('#edit-guest-permissions');
+    if (permsBtn) permsBtn.addEventListener('click', () => permissionsModal(client));
+    const copyGuestBtn = $('#copy-guest-link');
+    if (copyGuestBtn) copyGuestBtn.addEventListener('click', async () => {
+      const member = client.meetMembers.client;
+      try {
+        await navigator.clipboard.writeText(member.accessUrl);
+        toast(`Copied ${member.name}'s personal meeting link`);
+      } catch {
+        prompt('Copy the client meeting link:', member.accessUrl);
+      }
+    });
+
     $('#edit-client').addEventListener('click', () => clientFormModal(client));
     $('#delete-client').addEventListener('click', () => {
       if (confirm(`Delete ${client.companyName} and all its issues and meetings?`)) {
@@ -396,6 +423,115 @@
     });
     $('#add-issue-for-client').addEventListener('click', () => issueFormModal(null, client.id));
     bindIssueCards();
+  }
+
+  // ------------------------------------------------- meeting room access ---
+
+  // Human labels for OpenVidu Meet 3.8.0 member permissions, grouped for the UI.
+  const PERMISSION_GROUPS = [
+    { title: 'Meeting', perms: {
+      canJoinMeeting: 'Join the meeting',
+      canEndMeeting: 'End the meeting for everyone',
+      canKickParticipants: 'Kick participants',
+      canMakeModerator: 'Promote others to moderator',
+      canShareAccessLinks: 'Share access links',
+    } },
+    { title: 'Media', perms: {
+      canPublishVideo: 'Use camera',
+      canPublishAudio: 'Use microphone',
+      canShareScreen: 'Share screen',
+      canChangeVirtualBackground: 'Change virtual background',
+    } },
+    { title: 'Chat', perms: {
+      canReadChat: 'Read chat',
+      canWriteChat: 'Write in chat',
+    } },
+    { title: 'Recording', perms: {
+      canRecord: 'Start recordings',
+      canRetrieveRecordings: 'View recordings',
+      canDeleteRecordings: 'Delete recordings',
+    } },
+  ];
+
+  function meetAccessPanel(client) {
+    const member = client.meetMembers && client.meetMembers.client;
+    if (!member) {
+      return `
+        <p style="font-size:14px; color:var(--ink-600); margin-bottom:12px;">
+          ${esc(client.contactName || client.companyName)} has not been invited to the meeting room yet.
+          Inviting them creates the room and a personal access link with <strong>speaker</strong> permissions.
+        </p>
+        <button class="btn btn-primary btn-small" id="invite-client-guest">➕ Invite as guest</button>
+      `;
+    }
+    const allowed = PERMISSION_GROUPS.flatMap((g) =>
+      Object.entries(g.perms).filter(([k]) => member.effectivePermissions && member.effectivePermissions[k])
+    ).length;
+    return `
+      <div class="meet-access-row">
+        <div>
+          <p style="font-size:14px;">
+            ${esc(member.name)}
+            <span class="badge badge-${member.baseRole === 'moderator' ? 'open' : 'resolved'}">${esc(member.baseRole)}</span>
+            <span class="badge badge-count">${allowed}/14 permissions</span>
+          </p>
+          <p class="meeting-context" style="font-size:13px; color:var(--ink-400); word-break:break-all;">${esc(member.accessUrl)}</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-shrink:0;">
+          <button class="btn btn-secondary btn-small" id="copy-guest-link">🔗 Copy link</button>
+          <button class="btn btn-secondary btn-small" id="edit-guest-permissions">⚙ Permissions</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function permissionsModal(client) {
+    const member = client.meetMembers.client;
+    const perms = member.effectivePermissions || {};
+    openModal(`Permissions — ${member.name}`, `
+      <form>
+        <div class="field">
+          <label>Base role</label>
+          <select name="baseRole">
+            <option value="speaker" ${member.baseRole === 'speaker' ? 'selected' : ''}>Speaker</option>
+            <option value="moderator" ${member.baseRole === 'moderator' ? 'selected' : ''}>Moderator</option>
+          </select>
+        </div>
+        ${PERMISSION_GROUPS.map((group) => `
+          <div class="perm-group">
+            <h4>${group.title}</h4>
+            <div class="perm-grid">
+              ${Object.entries(group.perms).map(([key, label]) => `
+                <label class="perm-item">
+                  <input type="checkbox" data-perm="${key}" ${perms[key] ? 'checked' : ''} />
+                  ${label}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+        <p class="form-error hidden"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" data-cancel>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save permissions</button>
+        </div>
+      </form>
+    `, (body) => {
+      $('[data-cancel]', body).addEventListener('click', closeModal);
+      bindForm(body, async (values) => {
+        const customPermissions = {};
+        for (const box of body.querySelectorAll('[data-perm]')) {
+          customPermissions[box.dataset.perm] = box.checked;
+        }
+        await api('PUT', `/api/clients/${client.id}/meet-access`, {
+          baseRole: values.baseRole,
+          customPermissions,
+        });
+        toast('Guest permissions updated');
+        closeModal();
+        route();
+      });
+    });
   }
 
   // ---------------------------------------------------------------- issues ---
@@ -594,7 +730,7 @@
   }
 
   function meetingRow(m, isPast) {
-    const canJoin = Boolean(meetingParticipant(m, 'user'));
+    const canJoin = Boolean(m.roomId);
     const clientLink = meetingParticipant(m, 'client');
     return `
       <div class="meeting-row" data-meeting="${esc(m.id)}">
@@ -656,15 +792,17 @@
     }
   }
 
-  // Embed the OpenVidu Meet webcomponent so the meeting happens inside the app.
+  // Embed the OpenVidu Meet webcomponent so the meeting happens inside the
+  // app. The logged-in user is added under the hood as an invited guest with
+  // moderator role and joins with their own personal access URL.
   async function joinMeeting(meeting, context = {}) {
-    const participant = meetingParticipant(meeting, 'user');
-    if (!participant) {
+    if (!meeting.roomId) {
       toast('This meeting has no video room', true);
       return;
     }
+    let access;
     try {
-      await loadMeetScript();
+      [access] = await Promise.all([api('POST', `/api/meetings/${meeting.id}/join`), loadMeetScript()]);
     } catch (err) {
       toast(err.message, true);
       return;
@@ -675,7 +813,7 @@
       <div class="page-header">
         <div>
           <h1>${esc(title) || 'Online meeting'}</h1>
-          <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(currentUser.name)} (${esc(participant.role)})</p>
+          <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(access.name)} (${esc(access.role)})</p>
         </div>
         <div class="page-actions">
           <button class="btn btn-secondary" id="leave-meeting">Leave meeting</button>
@@ -685,7 +823,7 @@
     `;
 
     const container = $('#meet-container');
-    container.innerHTML = `<openvidu-meet room-url="${esc(participant.accessUrl)}" participant-name="${esc(currentUser.name)}"></openvidu-meet>`;
+    container.innerHTML = `<openvidu-meet room-url="${esc(access.accessUrl)}"></openvidu-meet>`;
     const meetEl = $('openvidu-meet', container);
     meetEl.once('closed', () => route());
     $('#leave-meeting').addEventListener('click', () => {
@@ -869,7 +1007,6 @@
   }
 
   function meetingDetailsModal(meeting) {
-    const userPart = meetingParticipant(meeting, 'user');
     const clientPart = meetingParticipant(meeting, 'client');
     openModal(`${meeting.clientName} — ${meeting.issueTitle}`, `
       <ul class="detail-list">
@@ -880,7 +1017,7 @@
       <div class="form-actions">
         <button class="btn btn-ghost" data-md-edit>Edit</button>
         ${clientPart ? '<button class="btn btn-secondary" data-md-copy>🔗 Client link</button>' : ''}
-        ${userPart ? '<button class="btn btn-primary" data-md-join>▶ Join</button>' : ''}
+        ${meeting.roomId ? '<button class="btn btn-primary" data-md-join>▶ Join</button>' : ''}
       </div>
     `, (body) => {
       $('[data-md-edit]', body).addEventListener('click', () => {

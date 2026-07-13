@@ -4,7 +4,7 @@ const express = require('express');
 const session = require('express-session');
 
 const store = require('./store');
-const { createMeetService } = require('./meet');
+const { createMeetService, PERMISSION_KEYS, MEMBER_ROLES } = require('./meet');
 
 function createApp(config = {}) {
   const app = express();
@@ -131,6 +131,67 @@ function createApp(config = {}) {
       return res.status(400).json({ error: 'companyName cannot be empty' });
     }
     res.json(client);
+  });
+
+  // Validate a {baseRole, customPermissions} payload for the client's guest
+  // membership. Returns an error string or null.
+  function validateMeetAccessPayload({ baseRole, customPermissions }) {
+    if (baseRole !== undefined && !MEMBER_ROLES.includes(baseRole)) {
+      return `baseRole must be one of: ${MEMBER_ROLES.join(', ')}`;
+    }
+    if (customPermissions !== undefined) {
+      if (typeof customPermissions !== 'object' || customPermissions === null || Array.isArray(customPermissions)) {
+        return 'customPermissions must be an object';
+      }
+      for (const [key, value] of Object.entries(customPermissions)) {
+        if (!PERMISSION_KEYS.includes(key)) {
+          return `unknown permission '${key}' (valid: ${PERMISSION_KEYS.join(', ')})`;
+        }
+        if (typeof value !== 'boolean') {
+          return `permission '${key}' must be a boolean`;
+        }
+      }
+    }
+    return null;
+  }
+
+  function meetErrorResponse(res, error) {
+    const status = error.statusCode === 409 ? 409 : 502;
+    res.status(status).json({ error: `OpenVidu Meet: ${error.message}` });
+  }
+
+  // Add the client contact to the meeting room as an invited guest (speaker by
+  // default), creating the client's room if it does not exist yet.
+  app.post('/api/clients/:id/meet-access', requireAuth, async (req, res) => {
+    const client = store.db.clients.get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const { baseRole, customPermissions } = req.body || {};
+    const invalid = validateMeetAccessPayload({ baseRole, customPermissions });
+    if (invalid) return res.status(400).json({ error: invalid });
+    try {
+      const member = await meet.ensureClientMember(client, { baseRole, customPermissions });
+      res.status(201).json({ meetRoom: client.meetRoom, member });
+    } catch (error) {
+      meetErrorResponse(res, error);
+    }
+  });
+
+  // Update the client guest's role / fine-grained permissions.
+  app.put('/api/clients/:id/meet-access', requireAuth, async (req, res) => {
+    const client = store.db.clients.get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    const { baseRole, customPermissions } = req.body || {};
+    if (baseRole === undefined && customPermissions === undefined) {
+      return res.status(400).json({ error: 'baseRole or customPermissions is required' });
+    }
+    const invalid = validateMeetAccessPayload({ baseRole, customPermissions });
+    if (invalid) return res.status(400).json({ error: invalid });
+    try {
+      const member = await meet.updateClientMemberPermissions(client, { baseRole, customPermissions });
+      res.json({ meetRoom: client.meetRoom, member });
+    } catch (error) {
+      meetErrorResponse(res, error);
+    }
   });
 
   app.delete('/api/clients/:id', requireAuth, (req, res) => {
@@ -272,6 +333,24 @@ function createApp(config = {}) {
       meeting.meetError = `OpenVidu Meet unavailable: ${error.message}`;
     }
     res.status(201).json(decorateMeeting(meeting));
+  });
+
+  // Personal access for the logged-in user to a meeting's room. The user is
+  // added under the hood as an invited guest with moderator role (once per
+  // user and room) and gets their own access URL.
+  app.post('/api/meetings/:id/join', requireAuth, async (req, res) => {
+    const meeting = store.db.meetings.get(req.params.id);
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+    const issue = store.db.issues.get(meeting.issueId);
+    const client = issue && store.db.clients.get(issue.clientId);
+    if (!client) return res.status(409).json({ error: 'The meeting has no client room' });
+    const user = store.db.users.get(req.session.userId);
+    try {
+      const member = await meet.ensureUserMember(client, user);
+      res.json({ accessUrl: member.accessUrl, name: member.name, role: member.baseRole });
+    } catch (error) {
+      meetErrorResponse(res, error);
+    }
   });
 
   app.put('/api/meetings/:id', requireAuth, (req, res) => {

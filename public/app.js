@@ -815,21 +815,16 @@
           <h1>${esc(title) || 'Online meeting'}</h1>
           <p class="page-sub">${fmtDateTime(meeting.date)} · joined as ${esc(access.name)} (${esc(access.role)})</p>
         </div>
-        <div class="page-actions">
-          <button class="btn btn-secondary" id="leave-meeting">Leave meeting</button>
-        </div>
       </div>
       <div class="meet-container" id="meet-container"></div>
     `;
 
+    // Leaving/ending the meeting is handled by the OpenVidu Meet UI itself;
+    // we just return to the previous view when the component closes.
     const container = $('#meet-container');
     container.innerHTML = `<openvidu-meet room-url="${esc(access.accessUrl)}"></openvidu-meet>`;
     const meetEl = $('openvidu-meet', container);
     meetEl.once('closed', () => route());
-    $('#leave-meeting').addEventListener('click', () => {
-      meetEl.leaveRoom();
-      route();
-    });
   }
 
   async function meetingFormModal(meeting, presetIssueId) {

@@ -93,7 +93,7 @@ function startFakeMeet() {
       membershipDate: 1780000000000,
     };
     entry.members.set(memberId, member);
-    res.status(201).json(member);
+    res.status(201).json(memberResponse(member, req));
   });
 
   app.put('/meet/api/v1/rooms/:roomId/members/:memberId', (req, res) => {
@@ -104,8 +104,17 @@ function startFakeMeet() {
     if (baseRole !== undefined) member.baseRole = baseRole;
     if (customPermissions !== undefined) member.customPermissions = customPermissions;
     member.effectivePermissions = effectivePermissions(member.baseRole, member.customPermissions);
-    res.json(member);
+    res.json(memberResponse(member, req));
   });
+
+  // Like the real 3.8.0 API, effectivePermissions is only returned when
+  // requested through the extraFields query param (or X-ExtraFields header).
+  function memberResponse(member, req) {
+    const extra = req.query.extraFields || req.headers['x-extrafields'] || '';
+    if (String(extra).split(',').includes('effectivePermissions')) return member;
+    const { effectivePermissions: _omitted, ...rest } = member;
+    return rest;
+  }
 
   return new Promise((resolve) => {
     const server = app.listen(0, '127.0.0.1', () => {

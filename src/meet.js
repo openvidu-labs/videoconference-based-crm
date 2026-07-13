@@ -113,7 +113,12 @@ function createMeetService(options = {}) {
     if (customPermissions && Object.keys(customPermissions).length > 0) {
       body.customPermissions = customPermissions;
     }
-    const member = await api('POST', `rooms/${client.meetRoom.roomId}/members`, body);
+    // effectivePermissions is an opt-in extra field of the members API.
+    const member = await api(
+      'POST',
+      `rooms/${client.meetRoom.roomId}/members?extraFields=effectivePermissions`,
+      body
+    );
     return storeMember(client, key, member);
   }
 
@@ -148,7 +153,7 @@ function createMeetService(options = {}) {
     if (customPermissions !== undefined) body.customPermissions = customPermissions;
     const member = await api(
       'PUT',
-      `rooms/${client.meetRoom.roomId}/members/${existing.memberId}`,
+      `rooms/${client.meetRoom.roomId}/members/${existing.memberId}?extraFields=effectivePermissions`,
       body
     );
     return storeMember(client, CLIENT_MEMBER_KEY, member);

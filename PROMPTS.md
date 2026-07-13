@@ -26,43 +26,21 @@ chronological order, kept for future reference on how it was built.
 > should use an in-memory database, so that it can be run with a single
 > command.
 
-## 2. Wrap-up check
-
-> are you finish already?
-
-## 3. First commit
-
-> commit this
-
-## 4. Try the app
+## 2. Try the app
 
 > run the app so I can try it
 
-## 5. Stop it
+## 3. Stop it
 
 > stop the server
 
-## 6. Commit check
-
-> did you commited changes?
-
-## 7. License
-
-> Add a LICENSE file with an Apache 2.0 license
-
-## 8. Commit the license
-
-> yes
-
-*(answering “want me to commit them?”)*
-
-## 9. GitHub
+## 4. GitHub
 
 > push it to github
 
 *(interrupted before any remote was configured — the repo was never pushed)*
 
-## 10. OpenVidu Meet integration
+## 5. OpenVidu Meet integration
 
 > You are a node full-stack developer. Your mission is to integrate OpenVidu 3
 > into this CRM application, using webcomponents. Read the OpenVidu 3.7.0
@@ -81,7 +59,7 @@ chronological order, kept for future reference on how it was built.
 > schedule a meeting within the room adding both the user and the client as
 > participants.
 
-## 11. Full stack
+## 6. Full stack
 
 > Run the full stack
 
@@ -89,18 +67,51 @@ chronological order, kept for future reference on how it was built.
 branch does not exist in OpenVidu Meet 3.7.0; the integration was adapted to
 3.7.0’s role URLs — see the next prompt)*
 
-## 12. Versioning clarification
+## 7. Versioning clarification
 
 > The master branch is the next development version, not 3.7.0. 3.7.0 is
 > freezed in its own branch. What you saw is the members API which will be
 > released as part of 3.8.0, scheduled for this week. Please, stop the stack.
 
-## 13. Release
+## 8. Release
 
 > Tag main branch as 1.0, then merge current branch into main, and tag it as
 > 2.0
 
-## 14. This file
+## 9. This file
 
 > Save all the prompts on a PROMPTS.md file at the root folder of the repo, in
 > the order I gave them to you, for future reference on how this app was built.
+
+## 10. Access control with OpenVidu 3.8.0
+
+> OpenVidu 3.8.0 has been released, with a more advanced support for user
+> permissions. Create a new branch control-access-ov-380 and update the project
+> so that it can use this new set of permissions. Specifically, the users of
+> our CRM app should be able to add the client as an invited guest, initially
+> with speaker permissions, but the user should be able to specify more
+> fine-grained permissions in the UI. The user must be itself an invited guest
+> with moderator role, created under the hood when the room for the client is
+> created.
+
+## 11. Full stack on 3.8.0
+
+> Start the OpenVidu 3.8.0 stack with the crm app
+
+*(live verification surfaced that 3.8.0 only returns a member's
+`effectivePermissions` when requested via `extraFields`, which was fixed)*
+
+## 12. Push the branch
+
+> Push the branch to the remote origin
+
+## 13. Release 3.0
+
+> Merge the control-access-ov-380 branch into main and push it. Tag it as 3.0
+> and push the tag
+
+## 14. Update this file
+
+> add the missing prompts to the PROMPTS.md file. I removed some of the
+> prompts that were not meaninfull, so renumber them taking this into account.
+> THen commit the file and push it
